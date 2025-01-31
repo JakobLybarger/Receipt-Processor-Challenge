@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"strconv"
@@ -46,7 +48,14 @@ func CalculatePoints(c *gin.Context) {
 
 	for _, receipt := range receipts {
 		if receipt.Id == id {
-			points := calculateReceiptPoints(receipt)
+			points, err := calculateReceiptPoints(receipt)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"description": fmt.Sprintf("Unfortunately, there was bad data in the body... Error: %v", err.Error()),
+				})
+				return
+			}
+
 			c.JSON(http.StatusOK, gin.H{
 				"points": points,
 			})
@@ -59,7 +68,7 @@ func CalculatePoints(c *gin.Context) {
 	})
 }
 
-func calculateReceiptPoints(receipt models.Receipt) int {
+func calculateReceiptPoints(receipt models.Receipt) (int, error) {
 	points := 0
 	for _, r := range receipt.Retailer {
 		if unicode.IsLetter(r) || unicode.IsNumber(r) {
@@ -67,7 +76,11 @@ func calculateReceiptPoints(receipt models.Receipt) int {
 		}
 	}
 
-	total, _ := strconv.ParseFloat(receipt.Total, 64)
+	total, err := strconv.ParseFloat(receipt.Total, 64)
+	if err != nil {
+		return -1, err
+	}
+
 	if total == math.Trunc(total) {
 		points += 50
 	}
@@ -89,15 +102,23 @@ func calculateReceiptPoints(receipt models.Receipt) int {
 		}
 	}
 
-	d, _ := time.Parse("2006-01-02", receipt.PurchaseDate)
+	d, err := time.Parse("2006-01-02", receipt.PurchaseDate)
+	if err != nil {
+		return -1, err
+	}
+
 	if math.Mod(float64(d.Day()), 2) != 0 {
 		points += 6
 	}
 
-	d, _ = time.Parse("15:04", receipt.PurchaseTime)
+	d, err = time.Parse("15:04", receipt.PurchaseTime)
+	if err != nil {
+		return -1, err
+	}
+
 	if 14 <= d.Hour() && d.Hour() < 16 {
 		points += 10
 	}
 
-	return points
+	return points, nil
 }

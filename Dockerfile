@@ -8,9 +8,9 @@ COPY go.mod go.sum ./
 RUN go mod download && go mod verify
 
 COPY . .
-RUN go build -o main .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o main .
 
-FROM alpine:latest
+FROM scratch
 
 WORKDIR /app
 COPY --from=builder /app/main/ .
